@@ -1,7 +1,7 @@
-streamlit==1.32.2
+streamlit
 pandas
 numpy
-faiss-cpu==1.7.4
+faiss-cpu==1.13.2
 sentence-transformers
 rapidfuzz
 openpyxl
