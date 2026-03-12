@@ -58,18 +58,6 @@ st.markdown("""
         font-weight: 400;
     }
     
-    /* Company name */
-    .company-name {
-        font-family: 'Inter', sans-serif;
-        font-size: 12px;
-        text-align: center;
-        color: #667eea;
-        margin-bottom: 20px;
-        font-weight: 500;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-    }
-    
     /* Metric cards - Compact */
     .metric-card {
         background: rgba(255, 255, 255, 0.05);
@@ -182,7 +170,7 @@ st.markdown("""
         border-radius: 3px;
     }
     
-    /* POPUP STYLES */
+    /* POPUP STYLES - Make sure these are visible */
     .popup-overlay {
         position: fixed;
         top: 0;
@@ -245,6 +233,7 @@ st.markdown("""
         border: 1px solid #a0a0a0;
         border-radius: 4px;
         transition: all 0.3s ease;
+        background: transparent;
     }
     
     .popup-close:hover {
@@ -370,6 +359,7 @@ st.markdown("""
 
 st.markdown("<h1 class='main-title'>AI Center Matching System</h1>", unsafe_allow_html=True)
 st.markdown("<div class='sub-title'>Neural Matching Engine • Innovatiview India Limited</div>", unsafe_allow_html=True)
+st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
 
 # --------------------------------------------------
 # COMPACT METRICS ROW
@@ -421,14 +411,14 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.markdown("<div class='upload-label'>Master Database</div>", unsafe_allow_html=True)
-    master_file = st.file_uploader("", type=["xlsx", "csv"], key="master", label_visibility="collapsed")
+    master_file = st.file_uploader("Upload Master File", type=["xlsx", "csv"], key="master", label_visibility="collapsed")
     if master_file:
         file_size = len(master_file.getvalue()) / 1024
         st.markdown(f"<div class='file-info'>📁 {master_file.name} • {file_size:.1f} KB</div>", unsafe_allow_html=True)
 
 with col2:
     st.markdown("<div class='upload-label'>Input Stream</div>", unsafe_allow_html=True)
-    input_file = st.file_uploader("", type=["xlsx", "csv"], key="input", label_visibility="collapsed")
+    input_file = st.file_uploader("Upload Input File", type=["xlsx", "csv"], key="input", label_visibility="collapsed")
     if input_file:
         file_size = len(input_file.getvalue()) / 1024
         st.markdown(f"<div class='file-info'>📁 {input_file.name} • {file_size:.1f} KB</div>", unsafe_allow_html=True)
@@ -457,23 +447,27 @@ with st.sidebar:
         "address": ["Near City Mall"]
     })
     
-    st.markdown("<div class='template-card'>", unsafe_allow_html=True)
-    st.download_button(
-        "📋 Master Template",
-        master_template.to_csv(index=False),
-        "master_format.csv",
-        use_container_width=True
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
+    with st.container():
+        st.markdown("<div class='template-card'>", unsafe_allow_html=True)
+        st.download_button(
+            "📋 Master Template",
+            master_template.to_csv(index=False),
+            "master_format.csv",
+            use_container_width=True,
+            key="master_template"
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
     
-    st.markdown("<div class='template-card'>", unsafe_allow_html=True)
-    st.download_button(
-        "📋 Input Template",
-        input_template.to_csv(index=False),
-        "input_format.csv",
-        use_container_width=True
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
+    with st.container():
+        st.markdown("<div class='template-card'>", unsafe_allow_html=True)
+        st.download_button(
+            "📋 Input Template",
+            input_template.to_csv(index=False),
+            "input_format.csv",
+            use_container_width=True,
+            key="input_template"
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
     
     st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
     
@@ -525,48 +519,7 @@ else:
     memory = pd.DataFrame(columns=["input_text", "match_center", "master_id"])
 
 # --------------------------------------------------
-# POPUP FUNCTION
-# --------------------------------------------------
-
-def show_progress_popup(progress, message, status, step_name, record_info=""):
-    """Display a professional popup with progress"""
-    
-    popup_html = f"""
-    <div class='popup-overlay'></div>
-    <div class='popup-container'>
-        <div class='popup-header'>
-            <div class='popup-title'>⚡ Neural Processing</div>
-            <div class='popup-close' onclick="this.closest('.popup-container').style.display='none'; document.querySelector('.popup-overlay').style.display='none';">✕</div>
-        </div>
-        
-        <div class='popup-progress-container'>
-            <div class='popup-progress-label'>Current Operation</div>
-            <div style='font-family: Poppins; color: white; font-size: 16px; margin-bottom: 15px;'>{step_name}</div>
-            
-            <div class='popup-progress-label'>Progress</div>
-            <div class='popup-progress-bar'>
-                <div class='popup-progress-fill' style='width: {progress}%;'></div>
-            </div>
-            <div class='popup-percentage'>{progress}%</div>
-            
-            <div class='popup-status'>
-                {message}
-            </div>
-            
-            {f"<div style='font-family: Roboto Mono; color: #667eea; text-align: center; margin: 10px 0; font-size: 12px;'>{record_info}</div>" if record_info else ""}
-            
-            <div class='popup-progress-label'>System Log</div>
-            <div class='popup-messages' id='popup-messages'>
-                {''.join([f"<div class='popup-message'><span class='popup-message-time'>[{datetime.now().strftime('%H:%M:%S')}]</span> {msg}</div>" for msg in status[-8:]])}
-            </div>
-        </div>
-    </div>
-    """
-    
-    return popup_html
-
-# --------------------------------------------------
-# PROCESSING SECTION WITH POPUP
+# PROCESSING SECTION
 # --------------------------------------------------
 
 if master_file and input_file:
@@ -584,19 +537,21 @@ if master_file and input_file:
 
     st.success("✅ Files loaded successfully")
     
-    # Create placeholder for popup
-    popup_placeholder = st.empty()
-    
-    # Initialize logs
-    logs = []
+    # Create containers for progress display
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    record_text = st.empty()
     
     # --------------------------------------------------
     # STEP 1: CLEAN MASTER DATA
     # --------------------------------------------------
-    logs.append("Initializing data cleaning...")
-    popup_placeholder.markdown(show_progress_popup(
-        10, "Cleaning master data", logs, "Data Preprocessing"
-    ), unsafe_allow_html=True)
+    with status_text.container():
+        st.markdown("""
+        <div style='text-align: center; font-family: Poppins; color: #667eea; font-size: 18px; margin: 10px;'>
+            ⚡ Cleaning master data...
+        </div>
+        """, unsafe_allow_html=True)
+    progress_bar.progress(10)
     time.sleep(0.5)
     
     master["clean_name"] = master["center_name"].apply(clean_text)
@@ -609,56 +564,55 @@ if master_file and input_file:
         master["address"].astype(str)
     ).apply(clean_text)
     
-    logs.append(f"✓ Cleaned {len(master)} master records")
-    popup_placeholder.markdown(show_progress_popup(
-        20, "Data cleaning complete", logs, "Data Preprocessing"
-    ), unsafe_allow_html=True)
+    progress_bar.progress(20)
     time.sleep(0.5)
     
     # --------------------------------------------------
     # STEP 2: GENERATE EMBEDDINGS
     # --------------------------------------------------
-    logs.append("Generating embeddings...")
-    popup_placeholder.markdown(show_progress_popup(
-        30, "Creating vector representations", logs, "Embedding Generation"
-    ), unsafe_allow_html=True)
+    with status_text.container():
+        st.markdown("""
+        <div style='text-align: center; font-family: Poppins; color: #764ba2; font-size: 18px; margin: 10px;'>
+            🌀 Generating embeddings...
+        </div>
+        """, unsafe_allow_html=True)
+    progress_bar.progress(30)
     
     embeddings = model.encode(master["combined"].tolist())
     embeddings = np.array(embeddings).astype("float32")
     
-    logs.append(f"✓ Generated {len(embeddings)} embeddings")
-    logs.append(f"✓ Dimension: {embeddings.shape[1]}")
-    popup_placeholder.markdown(show_progress_popup(
-        45, "Embeddings ready", logs, "Embedding Generation"
-    ), unsafe_allow_html=True)
+    progress_bar.progress(45)
     time.sleep(0.5)
     
     # --------------------------------------------------
     # STEP 3: BUILD FAISS INDEX
     # --------------------------------------------------
-    logs.append("Building FAISS index...")
-    popup_placeholder.markdown(show_progress_popup(
-        50, "Creating search index", logs, "Index Construction"
-    ), unsafe_allow_html=True)
+    with status_text.container():
+        st.markdown("""
+        <div style='text-align: center; font-family: Poppins; color: #667eea; font-size: 18px; margin: 10px;'>
+            🔍 Building FAISS index...
+        </div>
+        """, unsafe_allow_html=True)
+    progress_bar.progress(50)
     
     dim = embeddings.shape[1]
     index = faiss.IndexHNSWFlat(dim, 32)
     index.hnsw.efConstruction = 200
     index.add(embeddings)
     
-    logs.append("✓ FAISS index built successfully")
-    popup_placeholder.markdown(show_progress_popup(
-        60, "Index ready", logs, "Index Construction"
-    ), unsafe_allow_html=True)
+    progress_bar.progress(60)
     time.sleep(0.5)
     
     # --------------------------------------------------
     # STEP 4: EXECUTE MATCHING
     # --------------------------------------------------
-    logs.append("Starting neural matching...")
-    popup_placeholder.markdown(show_progress_popup(
-        65, "Matching in progress", logs, "Pattern Recognition"
-    ), unsafe_allow_html=True)
+    with status_text.container():
+        st.markdown("""
+        <div style='text-align: center; font-family: Poppins; color: #764ba2; font-size: 18px; margin: 10px;'>
+            🎯 Executing neural matching...
+        </div>
+        """, unsafe_allow_html=True)
+    progress_bar.progress(65)
     
     results = []
     ids = []
@@ -668,15 +622,17 @@ if master_file and input_file:
     total = len(input_data)
     
     for i, row in input_data.iterrows():
-        # Update progress (65% to 95%)
+        # Update progress
         progress = 65 + int((i / total) * 30)
+        progress_bar.progress(progress)
         
-        if i % max(1, total // 10) == 0:
-            logs.append(f"⚡ Processing batch {i+1}-{min(i+10, total)}/{total}")
-            popup_placeholder.markdown(show_progress_popup(
-                progress, f"Matching records...", logs, "Pattern Recognition",
-                f"Record {i+1} of {total} • {int((i+1)/total*100)}%"
-            ), unsafe_allow_html=True)
+        # Show current record
+        with record_text.container():
+            st.markdown(f"""
+            <div style='text-align: center; font-family: Roboto Mono; color: #a0a0a0; font-size: 14px; margin: 10px;'>
+                Processing record {i+1} of {total} • {int((i+1)/total*100)}%
+            </div>
+            """, unsafe_allow_html=True)
         
         name = clean_text(row["center_name"])
         address = clean_text(row["address"])
@@ -725,6 +681,9 @@ if master_file and input_file:
             scores.append(best_score)
             explanation.append(f"Low conf:{best_score:.2f}")
     
+    # Clear record text
+    record_text.empty()
+    
     # Add results to dataframe
     input_data["Matched Center"] = results
     input_data["Master ID"] = ids
@@ -734,17 +693,17 @@ if master_file and input_file:
     # --------------------------------------------------
     # STEP 5: FINALIZE
     # --------------------------------------------------
-    match_rate = len([s for s in scores if s > 0.9]) / len(scores) * 100
-    logs.append(f"✓ Match rate: {match_rate:.1f}%")
-    logs.append("✓ Processing complete")
+    with status_text.container():
+        st.markdown("""
+        <div style='text-align: center; font-family: Poppins; color: #10b981; font-size: 18px; margin: 10px;'>
+            ✅ Processing complete!
+        </div>
+        """, unsafe_allow_html=True)
+    progress_bar.progress(100)
+    time.sleep(1)
     
-    popup_placeholder.markdown(show_progress_popup(
-        100, "Processing complete!", logs, "Finalizing",
-        f"Processed {total} records • {match_rate:.1f}% match rate"
-    ), unsafe_allow_html=True)
-    
-    time.sleep(2)
-    popup_placeholder.empty()
+    # Clear status
+    status_text.empty()
     
     # --------------------------------------------------
     # RESULTS SECTION
@@ -753,6 +712,10 @@ if master_file and input_file:
     st.markdown("<h2 class='section-header'>Results</h2>", unsafe_allow_html=True)
     
     col1, col2, col3, col4 = st.columns(4)
+    
+    match_rate = len([s for s in scores if s > 0.9]) / len(scores) * 100
+    avg_score = np.mean(scores) * 100
+    high_conf = len([s for s in scores if s > 0.95])
     
     with col1:
         st.markdown(f"""
@@ -763,7 +726,6 @@ if master_file and input_file:
         """, unsafe_allow_html=True)
     
     with col2:
-        avg_score = np.mean(scores) * 100
         st.markdown(f"""
         <div class='metric-card'>
             <div class='metric-label'>Avg Confidence</div>
@@ -780,7 +742,6 @@ if master_file and input_file:
         """, unsafe_allow_html=True)
     
     with col4:
-        high_conf = len([s for s in scores if s > 0.95])
         st.markdown(f"""
         <div class='metric-card'>
             <div class='metric-label'>High Confidence</div>
@@ -819,6 +780,7 @@ if master_file and input_file:
             memory.drop_duplicates(inplace=True)
             memory.to_csv(memory_file, index=False)
             st.success("✅ Memory updated")
+            st.balloons()
     
     with col2:
         st.download_button(
