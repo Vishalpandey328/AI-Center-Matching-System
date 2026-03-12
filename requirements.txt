@@ -1,0 +1,8 @@
+streamlit==1.32.2
+pandas
+numpy
+faiss-cpu==1.7.4
+sentence-transformers
+rapidfuzz
+openpyxl
+torch
