@@ -9,7 +9,7 @@ from datetime import datetime
 from rapidfuzz import fuzz
 from sentence_transformers import SentenceTransformer
 
-# --------------------------------------------------
+# ------------------------
 # PAGE CONFIG
 
 
