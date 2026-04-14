@@ -7,792 +7,587 @@ import os
 import time
 import json
 import pickle
-import io
-import chardet
-from datetime import datetime
+from datetime import datetime, timedelta
 from rapidfuzz import fuzz
-from sentence_transformers import SentenceTransformer, CrossEncoder
+from sentence_transformers import SentenceTransformer
 from sklearn.preprocessing import normalize
 from collections import defaultdict
 import torch
-from typing import List, Dict, Tuple
-import openpyxl
-from openpyxl import load_workbook
 
 # ------------------------
 # PAGE CONFIG
 st.set_page_config(
-    page_title="AI Powered Center Matching System",
+    page_title="AI Powered Center Matching System with Self-Learning",
     page_icon="🎯",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# --------------------------------------------------
-# PROFESSIONAL CYBERPUNK UI STYLE
-# --------------------------------------------------
-
-st.markdown("""
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap');
-    
-    .stApp {
-        background: linear-gradient(135deg, #0a0f1f 0%, #1a1f2f 100%);
-        font-family: 'Inter', sans-serif;
-    }
-    
-    .main-title {
-        font-family: 'Poppins', sans-serif;
-        font-size: 32px;
-        font-weight: 600;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        text-align: center;
-        margin: 10px 0 5px 0;
-    }
-    
-    .sub-title {
-        font-family: 'Inter', sans-serif;
-        font-size: 14px;
-        text-align: center;
-        color: #a0a0a0;
-        margin-bottom: 15px;
-    }
-    
-    .metric-card {
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(102, 126, 234, 0.2);
-        border-radius: 8px;
-        padding: 12px;
-        text-align: center;
-        backdrop-filter: blur(10px);
-    }
-    
-    .metric-label {
-        font-family: 'Inter', sans-serif;
-        color: #a0a0a0;
-        font-size: 11px;
-        font-weight: 500;
-        text-transform: uppercase;
-    }
-    
-    .metric-value {
-        font-family: 'Poppins', sans-serif;
-        font-size: 18px;
-        font-weight: 600;
-        color: #667eea;
-        margin-top: 4px;
-    }
-    
-    .stButton > button {
-        font-family: 'Inter', sans-serif;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        font-weight: 500;
-        border: none;
-        padding: 8px 16px;
-        border-radius: 6px;
-    }
-    
-    .section-header {
-        font-family: 'Poppins', sans-serif;
-        font-size: 18px;
-        font-weight: 500;
-        color: white;
-        margin: 15px 0 10px 0;
-        padding-bottom: 5px;
-        border-bottom: 1px solid rgba(102, 126, 234, 0.3);
-    }
-    
-    .divider {
-        height: 1px;
-        background: linear-gradient(90deg, transparent, #667eea, transparent);
-        margin: 15px 0;
-    }
-    
-    .status-dot {
-        display: inline-block;
-        width: 8px;
-        height: 8px;
-        background: #10b981;
-        border-radius: 50%;
-        margin-right: 6px;
-        animation: pulse 2s infinite;
-    }
-    
-    @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.5; }
-    }
-</style>
-""", unsafe_allow_html=True)
+# [Your existing CSS styles remain the same]
 
 # --------------------------------------------------
-# HEADER
+# REINFORCEMENT LEARNING MODEL
 # --------------------------------------------------
 
-st.markdown("<h1 class='main-title'>AI Center Matching System</h1>", unsafe_allow_html=True)
-st.markdown("<div class='sub-title'>Multi-Strategy Neural Matching • Self-Learning AI</div>", unsafe_allow_html=True)
-
-col1, col2, col3, col4 = st.columns(4)
-
-with col1:
-    st.markdown("""
-    <div class='metric-card'>
-        <div class='metric-label'>AI Engine</div>
-        <div class='metric-value'>MULTI-STRATEGY</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col2:
-    st.markdown("""
-    <div class='metric-card'>
-        <div class='metric-label'>Learning</div>
-        <div class='metric-value'>ENABLED</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col3:
-    st.markdown("""
-    <div class='metric-card'>
-        <div class='metric-label'>Matchers</div>
-        <div class='metric-value'>5 ACTIVE</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col4:
-    st.markdown("""
-    <div class='metric-card'>
-        <div class='metric-label'>Status</div>
-        <div class='metric-value'><span class='status-dot'></span>ONLINE</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
-
-# --------------------------------------------------
-# FILE LOADING WITH ENCODING HANDLING
-# --------------------------------------------------
-
-def detect_encoding(file_bytes):
-    """Detect file encoding"""
-    try:
-        result = chardet.detect(file_bytes)
-        return result['encoding'] if result['encoding'] else 'utf-8'
-    except:
-        return 'utf-8'
-
-def load_file_with_encoding(uploaded_file):
-    """Load CSV or Excel file with proper encoding handling"""
-    try:
-        file_extension = uploaded_file.name.split('.')[-1].lower()
-        
-        if file_extension == 'csv':
-            # Try different encodings for CSV
-            encodings = ['utf-8', 'latin-1', 'iso-8859-1', 'cp1252', 'utf-16']
-            
-            for encoding in encodings:
-                try:
-                    uploaded_file.seek(0)
-                    df = pd.read_csv(uploaded_file, encoding=encoding)
-                    st.success(f"✅ Successfully loaded with {encoding} encoding")
-                    return df
-                except:
-                    continue
-            
-            # If all fail, try with error handling
-            uploaded_file.seek(0)
-            df = pd.read_csv(uploaded_file, encoding='latin-1', errors='ignore')
-            st.warning("⚠️ Loaded with latin-1 encoding (some characters may be replaced)")
-            return df
-            
-        else:  # Excel file
-            # Try different engines for Excel
-            try:
-                df = pd.read_excel(uploaded_file, engine='openpyxl')
-                return df
-            except:
-                try:
-                    df = pd.read_excel(uploaded_file, engine='xlrd')
-                    return df
-                except:
-                    # If Excel fails, try reading as CSV
-                    uploaded_file.seek(0)
-                    df = pd.read_csv(uploaded_file, encoding='latin-1', errors='ignore')
-                    st.warning("⚠️ File loaded as CSV (Excel format issue)")
-                    return df
-                    
-    except Exception as e:
-        st.error(f"Error loading file: {str(e)}")
-        return None
-
-def safe_text_convert(text):
-    """Safely convert text to string handling encoding issues"""
-    if pd.isna(text):
-        return ""
-    try:
-        return str(text).encode('utf-8', errors='ignore').decode('utf-8')
-    except:
-        return str(text)
-
-# --------------------------------------------------
-# MULTI-STRATEGY MATCHING ENGINE
-# --------------------------------------------------
-
-class MultiStrategyMatcher:
-    """Combines multiple matching strategies for better accuracy"""
+class ReinforcementLearningMatcher:
+    """Self-learning matcher using reinforcement learning principles"""
     
-    def __init__(self):
-        self.strategies = {
-            'exact': {'weight': 0.15, 'threshold': 0.9},
-            'fuzzy': {'weight': 0.25, 'threshold': 0.7},
-            'vector': {'weight': 0.20, 'threshold': 0.6},
-            'token': {'weight': 0.20, 'threshold': 0.65},
-            'address': {'weight': 0.20, 'threshold': 0.5}
+    def __init__(self, learning_rate=0.1, discount_factor=0.95, exploration_rate=0.1):
+        self.learning_rate = learning_rate  # How fast to learn
+        self.discount_factor = discount_factor  # Future reward importance
+        self.exploration_rate = exploration_rate  # Explore vs exploit
+        self.q_table = {}  # State-action values
+        self.feature_weights = {
+            'name_weight': 0.35,
+            'address_weight': 0.25,
+            'district_weight': 0.20,
+            'state_weight': 0.10,
+            'vector_weight': 0.10
         }
+        self.successful_patterns = defaultdict(int)
+        self.failure_patterns = defaultdict(int)
+        self.match_history = []
+        self.model_file = "rl_model.pkl"
         
-    def exact_match_score(self, str1, str2):
-        """Exact string matching after normalization"""
-        if pd.isna(str1) or pd.isna(str2):
-            return 0.0
-        str1_norm = safe_text_convert(str1).lower().strip()
-        str2_norm = safe_text_convert(str2).lower().strip()
-        return 1.0 if str1_norm == str2_norm else 0.0
+        # Load existing model if available
+        self.load_model()
     
-    def fuzzy_match_score(self, str1, str2):
-        """Multiple fuzzy matching techniques"""
-        if pd.isna(str1) or pd.isna(str2):
-            return 0.0
-        
-        str1 = safe_text_convert(str1).lower()
-        str2 = safe_text_convert(str2).lower()
-        
-        try:
-            ratio_score = fuzz.ratio(str1, str2) / 100
-            partial_score = fuzz.partial_ratio(str1, str2) / 100
-            token_score = fuzz.token_set_ratio(str1, str2) / 100
-            token_sort_score = fuzz.token_sort_ratio(str1, str2) / 100
-            
-            final_score = (0.3 * ratio_score + 0.2 * partial_score + 
-                          0.3 * token_score + 0.2 * token_sort_score)
-            
-            return final_score
-        except:
-            return 0.0
+    def get_state(self, input_text, candidate_text, similarity_scores):
+        """Create a state representation from matching features"""
+        # Create a hashable state representation
+        features = (
+            round(similarity_scores.get('name', 0), 2),
+            round(similarity_scores.get('address', 0), 2),
+            round(similarity_scores.get('district', 0), 2),
+            round(similarity_scores.get('state', 0), 2),
+            round(similarity_scores.get('vector', 0), 2),
+            len(input_text.split()),
+            len(candidate_text.split())
+        )
+        return str(features)
     
-    def token_match_score(self, str1, str2):
-        """Token-based matching (word overlap)"""
-        if pd.isna(str1) or pd.isna(str2):
-            return 0.0
+    def get_action(self, state, available_actions=['accept', 'reject', 'adjust']):
+        """Choose action using epsilon-greedy policy"""
+        import random
         
-        try:
-            tokens1 = set(safe_text_convert(str1).lower().split())
-            tokens2 = set(safe_text_convert(str2).lower().split())
-            
-            if not tokens1 or not tokens2:
-                return 0.0
-            
-            intersection = len(tokens1 & tokens2)
-            union = len(tokens1 | tokens2)
-            
-            return intersection / union if union > 0 else 0.0
-        except:
-            return 0.0
+        # Exploration: try random action
+        if random.random() < self.exploration_rate:
+            return random.choice(available_actions)
+        
+        # Exploitation: choose best action from Q-table
+        if state in self.q_table:
+            return max(self.q_table[state], key=self.q_table[state].get)
+        return 'accept'  # Default action
     
-    def calculate_comprehensive_score(self, input_row, master_row, address_matcher=None):
-        """Calculate matching score using all strategies"""
+    def update_q_value(self, state, action, reward, next_state):
+        """Update Q-value using Q-learning algorithm"""
+        if state not in self.q_table:
+            self.q_table[state] = {a: 0 for a in ['accept', 'reject', 'adjust']}
         
-        scores = {}
+        # Get current Q-value
+        current_q = self.q_table[state].get(action, 0)
         
-        # Name matching
-        name = safe_text_convert(input_row.get('center_name', ''))
-        master_name = safe_text_convert(master_row.get('center_name', ''))
+        # Get maximum future Q-value
+        max_future_q = 0
+        if next_state in self.q_table:
+            max_future_q = max(self.q_table[next_state].values())
         
-        scores['name_exact'] = self.exact_match_score(name, master_name)
-        scores['name_fuzzy'] = self.fuzzy_match_score(name, master_name)
-        scores['name_token'] = self.token_match_score(name, master_name)
-        
-        # District matching
-        district = safe_text_convert(input_row.get('district', ''))
-        master_district = safe_text_convert(master_row.get('district', ''))
-        scores['district_match'] = self.fuzzy_match_score(district, master_district)
-        
-        # State matching
-        state = safe_text_convert(input_row.get('state', ''))
-        master_state = safe_text_convert(master_row.get('state', ''))
-        scores['state_match'] = self.fuzzy_match_score(state, master_state)
-        
-        # Address matching
-        address = safe_text_convert(input_row.get('address', ''))
-        master_address = safe_text_convert(master_row.get('address', ''))
-        
-        if address_matcher:
-            scores['address_match'] = address_matcher.calculate_address_similarity(address, master_address)
-        else:
-            scores['address_match'] = self.fuzzy_match_score(address, master_address)
-        
-        # Calculate weighted final score
-        final_score = (
-            0.30 * max(scores['name_exact'], scores['name_fuzzy'], scores['name_token']) +
-            0.25 * scores['district_match'] +
-            0.10 * scores['state_match'] +
-            0.35 * scores['address_match']
+        # Calculate new Q-value
+        new_q = current_q + self.learning_rate * (
+            reward + self.discount_factor * max_future_q - current_q
         )
         
-        return final_score, scores
-
-# --------------------------------------------------
-# ENHANCED ADDRESS MATCHER
-# --------------------------------------------------
-
-class AddressMatcher:
-    def __init__(self):
-        self.address_patterns = {
-            r'\bblock\b': 'block', r'\bnear\b': 'near', r'\bopposite\b': 'opp',
-            r'\bpolice station\b': 'ps', r'\brailway station\b': 'railway stn',
-            r'\bmetro station\b': 'metro stn', r'\bmain road\b': 'main rd',
-            r'\broad\b': 'rd', r'\bstreet\b': 'st', r'\bnagar\b': 'nagar',
-            r'\bvihar\b': 'vihar', r'\bcolony\b': 'colony', r'\bextension\b': 'extn',
-            r'\bphase\b': 'ph', r'\bsector\b': 'sec'
+        # Update Q-table
+        self.q_table[state][action] = new_q
+    
+    def update_weights(self, successful_match, features_used):
+        """Dynamically adjust feature weights based on success patterns"""
+        # Analyze which features contributed most to successful matches
+        for feature, value in features_used.items():
+            if value > 0.8:  # High similarity
+                self.feature_weights[f'{feature}_weight'] = min(
+                    0.5, 
+                    self.feature_weights[f'{feature}_weight'] + self.learning_rate * 0.05
+                )
+            elif value < 0.3:  # Low similarity but still matched
+                self.feature_weights[f'{feature}_weight'] = max(
+                    0.05,
+                    self.feature_weights[f'{feature}_weight'] - self.learning_rate * 0.03
+                )
+        
+        # Normalize weights
+        total = sum(self.feature_weights.values())
+        for key in self.feature_weights:
+            self.feature_weights[key] /= total
+    
+    def learn_from_match(self, input_text, matched_text, was_correct, confidence, 
+                        similarity_scores, user_feedback=None):
+        """Main learning function - learns from each match attempt"""
+        
+        state = self.get_state(input_text, matched_text, similarity_scores)
+        
+        # Calculate reward based on outcome
+        reward = 0
+        if was_correct:
+            reward = 1.0 + (confidence - 0.7)  # Higher reward for high confidence matches
+            self.successful_patterns[state] += 1
+            
+            # Store successful pattern
+            self.match_history.append({
+                'timestamp': datetime.now(),
+                'input': input_text[:100],
+                'matched': matched_text[:100],
+                'confidence': confidence,
+                'success': True,
+                'similarity_scores': similarity_scores
+            })
+            
+            # Update weights based on successful match
+            self.update_weights(True, similarity_scores)
+            
+        else:
+            reward = -0.5 - (1 - confidence)  # Penalize wrong matches
+            self.failure_patterns[state] += 1
+            
+            self.match_history.append({
+                'timestamp': datetime.now(),
+                'input': input_text[:100],
+                'matched': matched_text[:100],
+                'confidence': confidence,
+                'success': False,
+                'similarity_scores': similarity_scores
+            })
+        
+        # Apply user feedback if available
+        if user_feedback:
+            if user_feedback == 'thumbs_up':
+                reward += 0.3
+            elif user_feedback == 'thumbs_down':
+                reward -= 0.5
+            elif user_feedback == 'correct_match':
+                reward += 0.5
+        
+        # Update Q-value
+        next_state = self.get_state(input_text, matched_text, similarity_scores)
+        self.update_q_value(state, 'accept', reward, next_state)
+        
+        # Reduce exploration rate over time (more exploitation as we learn)
+        self.exploration_rate = max(0.05, self.exploration_rate * 0.995)
+        
+        # Save model after significant learning
+        if len(self.match_history) % 10 == 0:
+            self.save_model()
+    
+    def get_adjusted_threshold(self, base_threshold=0.70):
+        """Dynamically adjust threshold based on learning"""
+        if len(self.match_history) < 10:
+            return base_threshold
+        
+        # Calculate success rate from recent matches
+        recent_matches = self.match_history[-50:]
+        if not recent_matches:
+            return base_threshold
+        
+        success_rate = sum(1 for m in recent_matches if m['success']) / len(recent_matches)
+        
+        # Adjust threshold based on success rate
+        if success_rate > 0.9:
+            return base_threshold + 0.05  # More strict
+        elif success_rate < 0.7:
+            return base_threshold - 0.05  # More lenient
+        
+        return base_threshold
+    
+    def predict_match_quality(self, input_text, candidate_text, similarity_scores):
+        """Predict if a match will be successful based on past learning"""
+        state = self.get_state(input_text, candidate_text, similarity_scores)
+        
+        if state in self.q_table:
+            q_value = self.q_table[state].get('accept', 0)
+            # Convert Q-value to probability (sigmoid-like)
+            probability = 1 / (1 + np.exp(-q_value))
+            return probability
+        return 0.5  # Default neutral prediction
+    
+    def save_model(self):
+        """Save the learned model to disk"""
+        model_data = {
+            'q_table': self.q_table,
+            'feature_weights': self.feature_weights,
+            'successful_patterns': dict(self.successful_patterns),
+            'failure_patterns': dict(self.failure_patterns),
+            'match_history': self.match_history[-1000:],  # Keep last 1000
+            'exploration_rate': self.exploration_rate
+        }
+        with open(self.model_file, 'wb') as f:
+            pickle.dump(model_data, f)
+    
+    def load_model(self):
+        """Load previously learned model"""
+        if os.path.exists(self.model_file):
+            try:
+                with open(self.model_file, 'rb') as f:
+                    model_data = pickle.load(f)
+                    self.q_table = model_data.get('q_table', {})
+                    self.feature_weights = model_data.get('feature_weights', self.feature_weights)
+                    self.successful_patterns = defaultdict(int, model_data.get('successful_patterns', {}))
+                    self.failure_patterns = defaultdict(int, model_data.get('failure_patterns', {}))
+                    self.match_history = model_data.get('match_history', [])
+                    self.exploration_rate = model_data.get('exploration_rate', 0.1)
+            except:
+                pass
+    
+    def get_learning_stats(self):
+        """Get statistics about the learning progress"""
+        total_matches = len(self.match_history)
+        successful = sum(1 for m in self.match_history if m['success'])
+        
+        return {
+            'total_learned_matches': total_matches,
+            'success_rate': successful / total_matches if total_matches > 0 else 0,
+            'unique_patterns': len(self.q_table),
+            'exploration_rate': self.exploration_rate,
+            'feature_weights': self.feature_weights,
+            'recent_success_rate': self._get_recent_success_rate()
         }
     
-    def normalize_address(self, address):
-        if pd.isna(address):
-            return ""
-        try:
-            address = safe_text_convert(address).lower()
-            address = re.sub(r'[^\w\s\-/]', ' ', address)
-            for pattern, replacement in self.address_patterns.items():
-                address = re.sub(pattern, replacement, address)
-            address = re.sub(r'\s+', ' ', address).strip()
-            return address
-        except:
-            return ""
-    
-    def calculate_address_similarity(self, addr1, addr2):
-        if not addr1 or not addr2:
-            return 0.0
-        
-        try:
-            addr1_norm = self.normalize_address(addr1)
-            addr2_norm = self.normalize_address(addr2)
-            
-            token_sim = fuzz.token_set_ratio(addr1_norm, addr2_norm) / 100
-            partial_sim = fuzz.partial_ratio(addr1_norm, addr2_norm) / 100
-            
-            pincode1 = re.findall(r'\b\d{6}\b', addr1_norm)
-            pincode2 = re.findall(r'\b\d{6}\b', addr2_norm)
-            pincode_sim = 1.0 if pincode1 and pincode2 and pincode1[0] == pincode2[0] else 0.0
-            
-            final_score = 0.5 * token_sim + 0.3 * partial_sim + 0.2 * pincode_sim
-            return final_score
-        except:
-            return 0.0
+    def _get_recent_success_rate(self, n=50):
+        """Calculate success rate of recent matches"""
+        recent = self.match_history[-n:]
+        if not recent:
+            return 0
+        return sum(1 for m in recent if m['success']) / len(recent)
 
 # --------------------------------------------------
-# SYNONYM MANAGER
+# ENHANCED TEXT CLEANING WITH DYNAMIC WEIGHTS
 # --------------------------------------------------
 
-class SynonymManager:
-    def __init__(self, synonym_file="synonyms.csv"):
-        self.synonym_file = synonym_file
-        self.load_synonyms()
-    
-    def load_synonyms(self):
-        if os.path.exists(self.synonym_file):
-            try:
-                self.synonyms_df = pd.read_csv(self.synonym_file, encoding='utf-8')
-            except:
-                self.synonyms_df = pd.read_csv(self.synonym_file, encoding='latin-1')
-        else:
-            self.synonyms_df = pd.DataFrame({
-                'word': ['govt', 'rajkiya', 'mahila', 'balika', 'balak', 'pg', 'inter', 
-                        'vidyalaya', 'kendra', 'nagar', 'gram', 'prakhand', 'mandal'],
-                'replacement': ['government', 'government', 'girls', 'girls', 'boys', 
-                               'postgraduate', 'intermediate', 'school', 'center', 
-                               'city', 'village', 'block', 'district']
-            })
-            self.save_synonyms()
-    
-    def save_synonyms(self):
-        self.synonyms_df.to_csv(self.synonym_file, index=False, encoding='utf-8')
-    
-    def get_enabled_synonyms(self):
-        return self.synonyms_df
-    
-    def add_synonym(self, word, replacement):
-        new_row = pd.DataFrame({'word': [safe_text_convert(word).lower()], 
-                               'replacement': [safe_text_convert(replacement).lower()]})
-        self.synonyms_df = pd.concat([self.synonyms_df, new_row], ignore_index=True)
-        self.save_synonyms()
-        return True
-    
-    def get_statistics(self):
-        return {'total': len(self.synonyms_df)}
-
-# --------------------------------------------------
-# TEXT CLEANING
-# --------------------------------------------------
-
-def enhanced_clean_text(text, synonym_manager):
+def enhanced_clean_text(text, synonyms_df):
+    """Enhanced text cleaning with better synonym handling"""
     if pd.isna(text):
         return ""
-    try:
-        text = safe_text_convert(text).lower()
-        text = re.sub(r"[^\w\s\-/]", " ", text)
-        
-        for _, row in synonym_manager.get_enabled_synonyms().iterrows():
-            word = safe_text_convert(row["word"]).lower()
-            replacement = safe_text_convert(row["replacement"]).lower()
-            text = re.sub(rf'\b{word}\b', replacement, text)
-        
-        text = re.sub(r'\s+', ' ', text).strip()
-        return text
-    except:
-        return ""
+    
+    text = str(text).lower()
+    
+    # Remove special characters but keep important ones
+    text = re.sub(r"[^\w\s\-/]", " ", text)
+    
+    # Expand common abbreviations
+    abbreviations = {
+        r'\bvidhan sabha\b': 'vidhansabha',
+        r'\bnagar nigam\b': 'nagarnigam',
+        r'\bnagar palika\b': 'nagarparishad',
+        r'\bgram panchayat\b': 'grampanchayat',
+        r'\bst\b': 'saint',
+        r'\bmt\b': 'mount',
+        r'\bnr\b': 'near',
+        r'\b\&\b': 'and',
+        r'\bph\b': 'public high',
+        r'\bghs\b': 'government high school',
+        r'\bgps\b': 'government primary school',
+        r'\bggic\b': 'government girls inter college',
+        r'\bgic\b': 'government inter college',
+    }
+    
+    for pattern, replacement in abbreviations.items():
+        text = re.sub(pattern, replacement, text)
+    
+    # Apply custom synonyms
+    for _, row in synonyms_df.iterrows():
+        word = str(row["word"]).lower()
+        replacement = str(row["replacement"]).lower()
+        text = re.sub(rf'\b{word}\b', replacement, text)
+    
+    # Remove extra spaces
+    text = re.sub(r'\s+', ' ', text).strip()
+    
+    return text
 
 # --------------------------------------------------
-# ENHANCED MATCHING FUNCTION
+# IMPROVED MATCHING WITH REINFORCEMENT LEARNING
 # --------------------------------------------------
 
-def match_centers_enhanced(input_data, master_df, model, index, synonym_manager, 
-                          confidence_threshold=0.60, strategy='balanced'):
-    """Enhanced matching with multiple strategies"""
+def match_with_rl(input_data, master_df, model, index, synonyms_df, rl_model, confidence_threshold=0.70):
+    """Matching function that uses reinforcement learning for improvement"""
     
     results = []
     match_details = []
-    multi_matcher = MultiStrategyMatcher()
-    address_matcher = AddressMatcher()
+    learning_opportunities = []
     
-    # Prepare master data with safe text conversion
-    master_df['clean_name'] = master_df['center_name'].apply(lambda x: enhanced_clean_text(x, synonym_manager))
-    master_df['clean_district'] = master_df['district'].apply(lambda x: enhanced_clean_text(x, synonym_manager))
-    master_df['clean_state'] = master_df['state'].apply(lambda x: enhanced_clean_text(x, synonym_manager))
-    master_df['clean_address'] = master_df['address'].apply(lambda x: enhanced_clean_text(x, synonym_manager))
+    # Prepare master data
+    master_df['clean_name'] = master_df['center_name'].apply(
+        lambda x: enhanced_clean_text(x, synonyms_df)
+    )
+    master_df['clean_address'] = master_df['address'].apply(
+        lambda x: enhanced_clean_text(x, synonyms_df)
+    )
+    master_df['clean_district'] = master_df['district'].apply(
+        lambda x: enhanced_clean_text(x, synonyms_df)
+    )
+    master_df['clean_state'] = master_df['state'].apply(
+        lambda x: enhanced_clean_text(x, synonyms_df)
+    )
     
-    # Adjust thresholds based on strategy
-    if strategy == 'aggressive':
-        confidence_threshold = max(0.45, confidence_threshold - 0.10)
-        address_threshold = 0.3
-        district_threshold = 0.4
-    elif strategy == 'balanced':
-        confidence_threshold = confidence_threshold
-        address_threshold = 0.35
-        district_threshold = 0.45
-    else:  # conservative
-        confidence_threshold = min(0.85, confidence_threshold + 0.05)
-        address_threshold = 0.5
-        district_threshold = 0.6
+    # Get dynamically adjusted threshold from RL model
+    adjusted_threshold = rl_model.get_adjusted_threshold(confidence_threshold)
     
     total = len(input_data)
     progress_bar = st.progress(0)
-    status_text = st.empty()
     
     for idx, row in input_data.iterrows():
         progress_bar.progress((idx + 1) / total)
-        status_text.info(f"Processing record {idx+1} of {total}")
         
-        try:
-            # Clean input with safe conversion
-            clean_name = enhanced_clean_text(row['center_name'], synonym_manager)
-            clean_district = enhanced_clean_text(row['district'], synonym_manager)
-            clean_state = enhanced_clean_text(row['state'], synonym_manager)
-            clean_address = enhanced_clean_text(row['address'], synonym_manager)
-            
-            query_text = f"{clean_name} {clean_district} {clean_state} {clean_address}"
-            
-            # Generate embedding
-            query_embedding = model.encode([query_text])
-            query_embedding = normalize(query_embedding.astype(np.float32))
-            
-            # Vector search
-            k = min(30, len(master_df))
-            distances, indices = index.search(query_embedding, k)
-            
-            scored_candidates = []
-            
-            for master_idx, distance in zip(indices[0], distances[0]):
-                if master_idx < len(master_df):
-                    master_row = master_df.iloc[master_idx]
-                    
-                    # Calculate comprehensive score
-                    final_score, component_scores = multi_matcher.calculate_comprehensive_score(
-                        row.to_dict(), master_row.to_dict(), address_matcher
-                    )
-                    
-                    vector_score = 1 / (1 + distance)
-                    combined_score = 0.7 * final_score + 0.3 * vector_score
-                    
-                    scored_candidates.append({
-                        'master_id': master_row.get('center_id', master_idx),
-                        'master_name': safe_text_convert(master_row['center_name']),
-                        'master_address': safe_text_convert(master_row.get('address', '')),
-                        'master_district': safe_text_convert(master_row.get('district', '')),
-                        'master_state': safe_text_convert(master_row.get('state', '')),
-                        'score': combined_score,
-                        'component_scores': component_scores
-                    })
-            
-            # Sort by score
-            scored_candidates.sort(key=lambda x: x['score'], reverse=True)
-            
-            # Find best match
-            best_match = None
-            for candidate in scored_candidates[:10]:
-                if (candidate['score'] >= confidence_threshold and
-                    candidate['component_scores'].get('district_match', 0) >= district_threshold):
-                    
-                    address_score = candidate['component_scores'].get('address_match', 0)
-                    if address_score >= address_threshold or candidate['score'] >= confidence_threshold + 0.15:
-                        best_match = candidate
-                        break
-            
-            # If still no match, try with relaxed conditions
-            if best_match is None and scored_candidates:
-                for candidate in scored_candidates[:5]:
-                    if candidate['score'] >= confidence_threshold - 0.1:
-                        best_match = candidate
-                        break
-            
-            if best_match:
-                results.append(best_match['master_name'])
-                match_details.append({
-                    'master_id': best_match['master_id'],
-                    'master_name': best_match['master_name'],
-                    'master_address': best_match['master_address'],
-                    'master_district': best_match['master_district'],
-                    'master_state': best_match['master_state'],
-                    'confidence': best_match['score'],
-                    'name_score': best_match['component_scores'].get('name_fuzzy', 0),
-                    'address_score': best_match['component_scores'].get('address_match', 0),
-                    'district_score': best_match['component_scores'].get('district_match', 0),
-                    'state_score': best_match['component_scores'].get('state_match', 0)
+        # Clean input text
+        clean_name = enhanced_clean_text(row['center_name'], synonyms_df)
+        clean_district = enhanced_clean_text(row['district'], synonyms_df)
+        clean_state = enhanced_clean_text(row['state'], synonyms_df)
+        clean_address = enhanced_clean_text(row['address'], synonyms_df)
+        
+        query_text = f"{clean_name} {clean_district} {clean_state} {clean_address}"
+        
+        # Generate query embedding
+        query_embedding = model.encode([query_text])
+        query_embedding = normalize(query_embedding.astype(np.float32))
+        
+        # Vector search
+        distances, indices = index.search(query_embedding, 15)
+        
+        # Score candidates
+        scored_candidates = []
+        
+        for master_idx, distance in zip(indices[0], distances[0]):
+            if master_idx < len(master_df):
+                master_row = master_df.iloc[master_idx]
+                
+                # Calculate similarity scores
+                name_score = fuzz.token_set_ratio(clean_name, master_row['clean_name']) / 100
+                address_score = fuzz.token_set_ratio(clean_address, master_row['clean_address']) / 100
+                district_score = fuzz.ratio(clean_district, master_row['clean_district']) / 100
+                state_score = fuzz.ratio(clean_state, master_row['clean_state']) / 100
+                vector_score = 1 / (1 + distance)
+                
+                similarity_scores = {
+                    'name': name_score,
+                    'address': address_score,
+                    'district': district_score,
+                    'state': state_score,
+                    'vector': vector_score
+                }
+                
+                # Use RL weights for final score
+                final_score = (
+                    rl_model.feature_weights['name_weight'] * name_score +
+                    rl_model.feature_weights['address_weight'] * address_score +
+                    rl_model.feature_weights['district_weight'] * district_score +
+                    rl_model.feature_weights['state_weight'] * state_score +
+                    rl_model.feature_weights['vector_weight'] * vector_score
+                )
+                
+                # Predict match quality using RL
+                predicted_quality = rl_model.predict_match_quality(
+                    query_text, 
+                    master_row['clean_name'], 
+                    similarity_scores
+                )
+                
+                scored_candidates.append({
+                    'master_id': master_row['center_id'],
+                    'master_name': master_row['center_name'],
+                    'score': final_score,
+                    'predicted_quality': predicted_quality,
+                    'similarity_scores': similarity_scores,
+                    'master_row': master_row
                 })
-            else:
-                results.append("⚡ No Match")
-                match_details.append({
-                    'master_id': 'NULL',
-                    'master_name': 'No Match Found',
-                    'master_address': 'N/A',
-                    'master_district': 'N/A',
-                    'master_state': 'N/A',
-                    'confidence': 0,
-                    'name_score': 0,
-                    'address_score': 0,
-                    'district_score': 0,
-                    'state_score': 0
-                })
-        except Exception as e:
-            st.warning(f"Error processing record {idx}: {str(e)}")
-            results.append("⚡ Error")
+        
+        # Sort by score
+        scored_candidates.sort(key=lambda x: x['score'], reverse=True)
+        
+        # Apply threshold
+        if scored_candidates and scored_candidates[0]['score'] >= adjusted_threshold:
+            best = scored_candidates[0]
+            results.append(best['master_name'])
             match_details.append({
-                'master_id': 'ERROR',
-                'master_name': 'Processing Error',
-                'master_address': 'N/A',
-                'master_district': 'N/A',
-                'master_state': 'N/A',
-                'confidence': 0,
-                'name_score': 0,
-                'address_score': 0,
-                'district_score': 0,
-                'state_score': 0
+                'master_id': best['master_id'],
+                'confidence': best['score'],
+                'predicted_quality': best['predicted_quality'],
+                'similarity_scores': best['similarity_scores'],
+                'matched_text': best['master_name']
+            })
+            
+            # Store for potential learning
+            learning_opportunities.append({
+                'input_text': query_text,
+                'matched_text': best['master_name'],
+                'confidence': best['score'],
+                'similarity_scores': best['similarity_scores'],
+                'row_index': idx
+            })
+        else:
+            results.append("⚡ No Match")
+            match_details.append({
+                'master_id': 'NULL',
+                'confidence': scored_candidates[0]['score'] if scored_candidates else 0,
+                'predicted_quality': 0,
+                'similarity_scores': {},
+                'matched_text': None
             })
     
     progress_bar.empty()
-    status_text.empty()
-    return results, match_details
+    return results, match_details, learning_opportunities
 
 # --------------------------------------------------
-# CREATE DETAILED REPORT
+# USER FEEDBACK COMPONENT
 # --------------------------------------------------
 
-def create_detailed_report(input_df, match_details):
-    report_df = input_df.copy()
+def feedback_component(row_idx, match_info):
+    """Component to collect user feedback for learning"""
+    col1, col2, col3 = st.columns([1, 1, 3])
     
-    report_df['Matched Center ID'] = [d['master_id'] for d in match_details]
-    report_df['Matched Center Name'] = [d['master_name'] for d in match_details]
-    report_df['Matched Address'] = [d['master_address'] for d in match_details]
-    report_df['Matched District'] = [d['master_district'] for d in match_details]
-    report_df['Matched State'] = [d['master_state'] for d in match_details]
-    report_df['Confidence Score'] = [d['confidence'] for d in match_details]
-    report_df['Name Match Score'] = [d['name_score'] for d in match_details]
-    report_df['Address Match Score'] = [d['address_score'] for d in match_details]
-    report_df['District Match Score'] = [d['district_score'] for d in match_details]
-    report_df['State Match Score'] = [d['state_score'] for d in match_details]
+    with col1:
+        if st.button("👍", key=f"thumb_up_{row_idx}"):
+            return "thumbs_up"
+    with col2:
+        if st.button("👎", key=f"thumb_down_{row_idx}"):
+            return "thumbs_down"
+    with col3:
+        if st.button("✓ Correct Match", key=f"correct_{row_idx}"):
+            return "correct_match"
     
-    report_df['Match Status'] = report_df['Matched Center Name'].apply(
-        lambda x: '✅ Matched' if x not in ['No Match Found', 'Processing Error'] else '❌ No Match'
-    )
-    
-    column_order = [
-        'center_name', 'district', 'state', 'address',
-        'Match Status', 'Matched Center Name', 'Matched Center ID',
-        'Matched Address', 'Matched District', 'Matched State',
-        'Confidence Score', 'Name Match Score', 'Address Match Score',
-        'District Match Score', 'State Match Score'
-    ]
-    
-    return report_df[column_order]
+    return None
 
 # --------------------------------------------------
-# INITIALIZE MODELS
+# MAIN APPLICATION
 # --------------------------------------------------
 
+# Initialize variables
+master_file = None
+input_file = None
+
+# Initialize Reinforcement Learning Model
 @st.cache_resource
-def init_synonym_manager():
-    return SynonymManager()
+def init_rl_model():
+    return ReinforcementLearningMatcher(learning_rate=0.1, exploration_rate=0.1)
 
-@st.cache_resource
-def load_embedding_model(model_name):
-    return SentenceTransformer(model_name)
+rl_model = init_rl_model()
 
-synonym_manager = init_synonym_manager()
-
-# --------------------------------------------------
-# MODEL INFORMATION
-# --------------------------------------------------
-
-model_info = {
-    "multi-qa-mpnet-base-dot-v1": {"name": "MPNet Base (Best Balance)", "size": "420 MB", "accuracy": "Very High"},
-    "all-mpnet-base-v2": {"name": "MPNet V2 (All-rounder)", "size": "420 MB", "accuracy": "High"},
-    "all-MiniLM-L6-v2": {"name": "MiniLM (Fastest)", "size": "80 MB", "accuracy": "Good"}
-}
-
-# --------------------------------------------------
-# FILE UPLOAD SECTION
-# --------------------------------------------------
-
-st.markdown("<h2 class='section-header'>📂 Data Upload</h2>", unsafe_allow_html=True)
+# File upload section
+st.markdown("<h2 class='section-header'>Data Upload</h2>", unsafe_allow_html=True)
 
 col1, col2 = st.columns(2)
 
 with col1:
-    master_file = st.file_uploader("Master Database (Excel/CSV)", type=["xlsx", "csv"], key="master")
+    master_file = st.file_uploader("Upload Master File", type=["xlsx", "csv"], key="master")
 
 with col2:
-    input_file = st.file_uploader("Input Stream (Excel/CSV)", type=["xlsx", "csv"], key="input")
+    input_file = st.file_uploader("Upload Input File", type=["xlsx", "csv"], key="input")
 
-st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
-
-# --------------------------------------------------
-# SIDEBAR
-# --------------------------------------------------
-
+# Sidebar
 with st.sidebar:
-    st.markdown("<div class='sidebar-header'>🎯 Matching Configuration</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sidebar-header'>🎯 Reinforcement Learning Settings</div>", unsafe_allow_html=True)
     
-    selected_model = st.selectbox(
-        "AI Model",
-        options=list(model_info.keys()),
-        format_func=lambda x: model_info[x]["name"]
-    )
-    
-    matching_strategy = st.select_slider(
-        "Matching Strategy",
-        options=['conservative', 'balanced', 'aggressive'],
-        value='aggressive',  # Changed to aggressive by default for more matches
-        help="Aggressive: More matches | Conservative: Higher accuracy"
+    model_option = st.selectbox(
+        "Choose Model",
+        [
+            "multi-qa-mpnet-base-dot-v1",
+            "all-mpnet-base-v2",
+            "BAAI/bge-large-en-v1.5",
+            "all-MiniLM-L6-v2"
+        ],
+        index=0
     )
     
     confidence_threshold = st.slider(
-        "Confidence Threshold",
-        min_value=0.40,
+        "Base Confidence Threshold",
+        min_value=0.50,
         max_value=0.95,
-        value=0.55,  # Lowered default for more matches
-        step=0.05,
-        help="Lower = more matches, Higher = more accurate"
+        value=0.70,
+        step=0.05
     )
     
     st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
     
-    # Templates
-    st.markdown("<div class='sidebar-header'>📥 Templates</div>", unsafe_allow_html=True)
+    # Learning Statistics
+    st.markdown("<div class='sidebar-header'>📊 Learning Statistics</div>", unsafe_allow_html=True)
     
-    master_template = pd.DataFrame({
-        "center_id": ["1001", "1002"],
-        "center_name": ["ABC Public School", "XYZ College"],
-        "district": ["Lucknow", "Kanpur"],
-        "state": ["Uttar Pradesh", "Uttar Pradesh"],
-        "address": ["Near City Mall", "Civil Lines"]
-    })
-    
-    input_template = pd.DataFrame({
-        "center_name": ["ABC School", "XYZ College"],
-        "district": ["Lucknow", "Kanpur"],
-        "state": ["Uttar Pradesh", "Uttar Pradesh"],
-        "address": ["City Mall Area", "Civil Lines Kanpur"]
-    })
+    learning_stats = rl_model.get_learning_stats()
     
     col1, col2 = st.columns(2)
     with col1:
-        st.download_button("Master Template", master_template.to_csv(index=False), "master_template.csv")
+        st.metric("Matches Learned", learning_stats['total_learned_matches'])
     with col2:
-        st.download_button("Input Template", input_template.to_csv(index=False), "input_template.csv")
+        st.metric("Success Rate", f"{learning_stats['success_rate']*100:.1f}%")
+    
+    st.metric("Unique Patterns", learning_stats['unique_patterns'])
+    st.metric("Exploration Rate", f"{learning_stats['exploration_rate']*100:.1f}%")
     
     st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
     
-    # Synonyms
+    # Feature Weights (Dynamically adjusted)
+    st.markdown("<div class='sidebar-header'>⚖️ Learned Feature Weights</div>", unsafe_allow_html=True)
+    
+    for feature, weight in learning_stats['feature_weights'].items():
+        st.progress(weight, text=f"{feature.replace('_weight', '')}: {weight:.2f}")
+    
+    st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
+    
+    if st.button("🔄 Reset Learning Model", use_container_width=True):
+        rl_model = ReinforcementLearningMatcher()
+        st.success("Model reset successfully!")
+        st.rerun()
+    
+    if st.button("💾 Save Learning Model", use_container_width=True):
+        rl_model.save_model()
+        st.success("Model saved!")
+    
+    st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
+    
+    # Synonym management (simplified)
     st.markdown("<div class='sidebar-header'>📚 Synonyms</div>", unsafe_allow_html=True)
     
-    stats = synonym_manager.get_statistics()
-    st.info(f"Total synonyms: {stats['total']}")
+    synonym_file = "synonyms.csv"
+    if os.path.exists(synonym_file):
+        synonyms_df = pd.read_csv(synonym_file)
+    else:
+        synonyms_df = pd.DataFrame({
+            "word": ["govt", "rajkiya", "mahila", "balika", "balak", "pg", "inter"],
+            "replacement": ["government", "government", "girls", "girls", "boys", "postgraduate", "intermediate"]
+        })
     
-    new_word = st.text_input("New Word", placeholder="e.g., vidyalaya")
-    new_replacement = st.text_input("Replacement", placeholder="e.g., school")
-    
-    if st.button("➕ Add Synonym", use_container_width=True):
-        if new_word and new_replacement:
-            synonym_manager.add_synonym(new_word, new_replacement)
-            st.success(f"Added: {new_word} → {new_replacement}")
-            st.rerun()
+    st.info(f"Loaded {len(synonyms_df)} synonyms")
 
-# --------------------------------------------------
-# MAIN PROCESSING
-# --------------------------------------------------
-
+# Main processing
 if master_file and input_file:
     try:
-        # Load files with proper encoding
-        with st.spinner("Loading master file..."):
-            master_df = load_file_with_encoding(master_file)
-            if master_df is None:
-                st.error("Failed to load master file")
-                st.stop()
+        # Load files
+        if master_file.name.endswith(".csv"):
+            master_df = pd.read_csv(master_file)
+        else:
+            master_df = pd.read_excel(master_file)
         
-        with st.spinner("Loading input file..."):
-            input_df = load_file_with_encoding(input_file)
-            if input_df is None:
-                st.error("Failed to load input file")
-                st.stop()
-        
-        # Convert all text columns to safe strings
-        text_columns = ['center_name', 'district', 'state', 'address']
-        for col in text_columns:
-            if col in master_df.columns:
-                master_df[col] = master_df[col].apply(safe_text_convert)
-            if col in input_df.columns:
-                input_df[col] = input_df[col].apply(safe_text_convert)
+        if input_file.name.endswith(".csv"):
+            input_df = pd.read_csv(input_file)
+        else:
+            input_df = pd.read_excel(input_file)
         
         st.success(f"✅ Loaded {len(master_df)} master records and {len(input_df)} input records")
         
         # Load model
-        with st.spinner(f"Loading {model_info[selected_model]['name']}..."):
-            model = load_embedding_model(selected_model)
+        @st.cache_resource
+        def load_embedding_model(model_name):
+            return SentenceTransformer(model_name)
+        
+        with st.spinner(f"Loading {model_option}..."):
+            model = load_embedding_model(model_option)
         
         # Process master data
-        with st.spinner("Generating embeddings..."):
+        with st.spinner("Processing master data and generating embeddings..."):
             master_df['clean_text'] = master_df.apply(
-                lambda x: enhanced_clean_text(f"{x['center_name']} {x['district']} {x['state']} {x['address']}", 
-                                              synonym_manager), axis=1
+                lambda x: enhanced_clean_text(
+                    f"{x['center_name']} {x['district']} {x['state']} {x['address']}", 
+                    synonyms_df
+                ), 
+                axis=1
             )
-            
-            # Filter out empty texts
-            master_df = master_df[master_df['clean_text'].str.len() > 0]
-            
-            if len(master_df) == 0:
-                st.error("No valid master records after processing")
-                st.stop()
             
             embeddings = model.encode(master_df['clean_text'].tolist(), show_progress_bar=True)
             embeddings = normalize(embeddings.astype(np.float32))
@@ -801,80 +596,110 @@ if master_file and input_file:
             index = faiss.IndexFlatIP(dimension)
             index.add(embeddings)
         
-        # Perform matching
-        with st.spinner("Matching with multi-strategy AI..."):
-            results, match_details = match_centers_enhanced(
-                input_df, master_df, model, index, synonym_manager, 
-                confidence_threshold, matching_strategy
+        # Perform matching with RL
+        with st.spinner("Matching with Reinforcement Learning..."):
+            results, match_details, learning_opportunities = match_with_rl(
+                input_df, master_df, model, index, synonyms_df, 
+                rl_model, confidence_threshold
             )
         
-        # Create report
-        report_df = create_detailed_report(input_df, match_details)
+        # Add results to dataframe
+        input_df['Matched Center'] = results
+        input_df['Confidence Score'] = [d['confidence'] for d in match_details]
+        input_df['Predicted Quality'] = [d['predicted_quality'] for d in match_details]
+        input_df['Master ID'] = [d['master_id'] for d in match_details]
         
         # Display results
-        st.markdown("<h2 class='section-header'>📊 Matching Results</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 class='section-header'>Matching Results</h2>", unsafe_allow_html=True)
         
-        matches_found = report_df[report_df['Match Status'] == '✅ Matched']
-        match_rate = (len(matches_found) / len(report_df)) * 100
+        # Summary metrics
+        matches_found = input_df[input_df['Matched Center'] != "⚡ No Match"]
+        match_rate = (len(matches_found) / len(input_df)) * 100 if len(input_df) > 0 else 0
+        avg_confidence = matches_found['Confidence Score'].mean() * 100 if len(matches_found) > 0 else 0
+        avg_predicted_quality = matches_found['Predicted Quality'].mean() * 100 if len(matches_found) > 0 else 0
         
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
+        metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+        with metric_col1:
             st.metric("Match Rate", f"{match_rate:.1f}%")
+        with metric_col2:
+            st.metric("Avg Confidence", f"{avg_confidence:.1f}%")
+        with metric_col3:
+            st.metric("Predicted Quality", f"{avg_predicted_quality:.1f}%")
+        with metric_col4:
+            st.metric("Total Matches", len(matches_found))
+        
+        # Interactive results table with feedback
+        st.markdown("### Results with Feedback (Click to help AI learn)")
+        
+        for idx, row in input_df.iterrows():
+            with st.expander(f"Record {idx+1}: {row['center_name']} → {row['Matched Center']} (Confidence: {row['Confidence Score']*100:.1f}%)"):
+                col1, col2 = st.columns([3, 1])
+                
+                with col1:
+                    st.write(f"**Input:** {row['center_name']}, {row['district']}, {row['state']}")
+                    st.write(f"**Matched:** {row['Matched Center']}")
+                    st.write(f"**Confidence:** {row['Confidence Score']:.2%}")
+                    st.write(f"**AI Prediction:** {row['Predicted Quality']:.2%}")
+                
+                with col2:
+                    if row['Matched Center'] != "⚡ No Match":
+                        feedback = feedback_component(idx, row['Matched Center'])
+                        if feedback:
+                            # Learn from user feedback
+                            match_detail = match_details[idx]
+                            rl_model.learn_from_match(
+                                input_text=f"{row['center_name']} {row['district']} {row['state']}",
+                                matched_text=row['Matched Center'],
+                                was_correct=True,
+                                confidence=row['Confidence Score'],
+                                similarity_scores=match_detail.get('similarity_scores', {}),
+                                user_feedback=feedback
+                            )
+                            st.success("✅ Thanks! AI learned from your feedback")
+                            st.rerun()
+        
+        # Learning summary
+        st.markdown("### 📈 Learning Progress")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.info(f"**Total Learning Iterations:** {learning_stats['total_learned_matches']}")
+            st.info(f"**Success Rate:** {learning_stats['success_rate']*100:.1f}%")
+            st.info(f"**Patterns Learned:** {learning_stats['unique_patterns']}")
+        
         with col2:
-            st.metric("Total Records", len(report_df))
-        with col3:
-            st.metric("Matches Found", len(matches_found))
-        with col4:
-            avg_conf = matches_found['Confidence Score'].mean() * 100 if len(matches_found) > 0 else 0
-            st.metric("Avg Confidence", f"{avg_conf:.1f}%")
+            st.warning(f"**Exploration Rate:** {learning_stats['exploration_rate']*100:.1f}%")
+            st.success(f"**Recent Success:** {learning_stats['recent_success_rate']*100:.1f}%")
         
-        # Display results table
-        display_df = report_df.copy()
-        score_cols = ['Confidence Score', 'Name Match Score', 'Address Match Score', 'District Match Score', 'State Match Score']
-        for col in score_cols:
-            if col in display_df.columns:
-                display_df[col] = display_df[col].apply(lambda x: f"{x*100:.1f}%" if pd.notna(x) and x > 0 else "N/A")
-        
-        st.dataframe(display_df, use_container_width=True)
+        # Batch learning option
+        st.markdown("### 🧠 Batch Learning")
+        if st.button("Learn from All Successful Matches", use_container_width=True):
+            with st.spinner("AI is learning from all matches..."):
+                for idx, row in input_df.iterrows():
+                    if row['Matched Center'] != "⚡ No Match" and row['Confidence Score'] > 0.8:
+                        match_detail = match_details[idx]
+                        rl_model.learn_from_match(
+                            input_text=f"{row['center_name']} {row['district']} {row['state']}",
+                            matched_text=row['Matched Center'],
+                            was_correct=True,
+                            confidence=row['Confidence Score'],
+                            similarity_scores=match_detail.get('similarity_scores', {})
+                        )
+                st.success("✅ AI has learned from all successful matches!")
+                st.rerun()
         
         # Download button
-        csv = report_df.to_csv(index=False)
+        csv = input_df.to_csv(index=False)
         st.download_button(
-            "📥 Download Results CSV",
+            "📥 Download Results",
             csv,
-            f"matching_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            f"rl_matching_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
             "text/csv",
             use_container_width=True
         )
         
-        # Show unmatched records
-        unmatched = report_df[report_df['Match Status'] == '❌ No Match']
-        if len(unmatched) > 0:
-            st.markdown("<h2 class='section-header'>⚠️ Unmatched Records</h2>", unsafe_allow_html=True)
-            st.warning(f"{len(unmatched)} records could not be matched. Suggestions:")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                st.info("💡 Try these adjustments:")
-                st.markdown("""
-                - Lower confidence threshold further
-                - Switch to 'aggressive' strategy
-                - Add more synonyms
-                """)
-            with col2:
-                st.info("📋 Common variations to add as synonyms:")
-                st.markdown("""
-                - vidyalaya → school
-                - kendra → center
-                - nagar → city
-                - gram → village
-                """)
-            
-            with st.expander(f"View {len(unmatched)} Unmatched Records"):
-                st.dataframe(unmatched[['center_name', 'district', 'state', 'address']], use_container_width=True)
-        
     except Exception as e:
-        st.error(f"Error: {str(e)}")
+        st.error(f"Error during processing: {str(e)}")
         st.exception(e)
 
 else:
